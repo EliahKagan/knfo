@@ -131,7 +131,7 @@ fn main() -> Result<()> {
 
     let name_width_estimate = named_paths
         .iter()
-        .map(|np| np.name.len())
+        .map(|np| np.name.chars().count())
         .max()
         .unwrap_or(0);
 
