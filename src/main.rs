@@ -91,10 +91,15 @@ impl Drop for KnownFolderDefinition {
     }
 }
 
-fn main() -> Result<()> {
-    unsafe {
-        let _com = ComInit::new()?;
+struct NamedPath {
+    name: String,
+    try_path: Result<String>,
+}
 
+fn get_named_paths() -> Result<Vec<NamedPath>> {
+    let mut ret = vec![];
+
+    unsafe {
         let kf_manager: IKnownFolderManager =
             CoCreateInstance(&KnownFolderManager, None, CLSCTX_INPROC_SERVER)?;
 
@@ -106,12 +111,27 @@ fn main() -> Result<()> {
                 .pszName
                 .to_string()?;
 
-            match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
-                Ok(path) => println!("{}: {}", name, path.to_string()?),
-                Err(e) => println!("{} [{}]", name, e.message()),
-            }
-        }
+            let try_path = match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
+                Ok(path) => Ok(path.to_string()?),
+                Err(e) => Err(e),
+            };
 
-        Ok(())
+            ret.push(NamedPath { name, try_path });
+        }
     }
+
+    Ok(ret)
+}
+
+fn main() -> Result<()> {
+    let _com = ComInit::new()?;
+
+    for NamedPath { name, try_path } in get_named_paths()? {
+        match try_path {
+            Ok(path) => println!("{name}: {path}"),
+            Err(e) => println!("{} [{}]", name, e.message()),
+        }
+    }
+
+    Ok(())
 }
