@@ -126,10 +126,23 @@ fn get_named_paths() -> Result<Vec<NamedPath>> {
 fn main() -> Result<()> {
     let _com = ComInit::new()?;
 
-    for NamedPath { name, try_path } in get_named_paths()? {
+    let mut named_paths = get_named_paths()?;
+    named_paths.sort_by_key(|np| np.name.to_string());
+
+    let name_width_estimate = named_paths
+        .iter()
+        .map(|np| np.name.len())
+        .max()
+        .unwrap_or(0);
+
+    for NamedPath { name, try_path } in named_paths {
         match try_path {
-            Ok(path) => println!("{name}: {path}"),
-            Err(e) => println!("{}  [{}]", name, e.message()),
+            Ok(path) => {
+                let name_col_item = format!("{name}:");
+                let name_col_width = name_width_estimate + 3;
+                println!("{name_col_item:<name_col_width$} {path}")
+            }
+            Err(e) => println!("{name}  [{}]", e.message()),
         }
     }
 
