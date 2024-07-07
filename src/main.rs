@@ -3,7 +3,7 @@
 //! See [Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/known-folders).
 
 use windows::{
-    core::{Error, Result, GUID, PWSTR},
+    core::{Result, GUID, PWSTR},
     Win32::{
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
@@ -20,12 +20,8 @@ struct ComInit;
 
 impl ComInit {
     fn new() -> Result<Self> {
-        let hresult = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
-        if hresult.is_err() {
-            Err(Error::from_hresult(hresult))
-        } else {
-            Ok(ComInit)
-        }
+        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.ok()?;
+        Ok(ComInit)
     }
 }
 
