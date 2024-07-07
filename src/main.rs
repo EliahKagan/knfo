@@ -3,7 +3,7 @@
 //! See [Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/known-folders).
 
 use windows::{
-    core::{Error, GUID, PWSTR},
+    core::{Error, Result, GUID, PWSTR},
     Win32::{
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
@@ -19,7 +19,7 @@ use windows::{
 struct ComInit;
 
 impl ComInit {
-    fn new() -> Result<Self, Error> {
+    fn new() -> Result<Self> {
         let hresult = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
         if hresult.is_err() {
             Err(Error::from_hresult(hresult))
@@ -41,7 +41,7 @@ struct KnownFolderIds {
 }
 
 impl KnownFolderIds {
-    fn new(kf_manager: &IKnownFolderManager) -> Result<Self, Error> {
+    fn new(kf_manager: &IKnownFolderManager) -> Result<Self> {
         let mut pkfid = std::ptr::null_mut();
         let mut count = 0;
         unsafe { kf_manager.GetFolderIds(&mut pkfid, &mut count)? };
@@ -64,7 +64,7 @@ struct KnownFolderDefinition {
 }
 
 impl KnownFolderDefinition {
-    fn of(folder: &IKnownFolder) -> Result<Self, Error> {
+    fn of(folder: &IKnownFolder) -> Result<Self> {
         let mut fields = KNOWNFOLDER_DEFINITION::default();
         unsafe { folder.GetFolderDefinition(&mut fields)? };
         Ok(KnownFolderDefinition { fields })
@@ -91,7 +91,7 @@ impl Drop for KnownFolderDefinition {
     }
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     unsafe {
         let _com = ComInit::new()?;
 
