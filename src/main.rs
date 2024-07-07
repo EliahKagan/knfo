@@ -136,14 +136,8 @@ fn main() -> Result<()> {
         .unwrap_or(0);
 
     for NamedPath { name, try_path } in named_paths {
-        match try_path {
-            Ok(path) => {
-                let name_col_item = format!("{name}:");
-                let name_col_width = name_width_estimate + 3;
-                println!("{name_col_item:<name_col_width$} {path}")
-            }
-            Err(e) => println!("{name}  [{}]", e.message()),
-        }
+        let path_item = try_path.unwrap_or_else(|e| format!("[{}]", e.message()));
+        println!("{name:<name_width_estimate$}  {path_item}");
     }
 
     Ok(())
