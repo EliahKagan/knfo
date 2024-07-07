@@ -9,7 +9,10 @@ use windows::{
             CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
             COINIT_APARTMENTTHREADED,
         },
-        UI::Shell::{IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_DEFAULT, KNOWNFOLDER_DEFINITION},
+        UI::Shell::{
+            IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_DEFAULT,
+            KNOWNFOLDER_DEFINITION,
+        },
     },
 };
 
@@ -28,7 +31,7 @@ impl ComInit {
 
 impl Drop for ComInit {
     fn drop(&mut self) {
-        unsafe { CoUninitialize() }
+        unsafe { CoUninitialize() };
     }
 }
 
@@ -52,7 +55,7 @@ impl KnownFolderIds {
 
 impl Drop for KnownFolderIds {
     fn drop(&mut self) {
-        unsafe { CoTaskMemFree(Some(self.pkfid as *const _)) }
+        unsafe { CoTaskMemFree(Some(self.pkfid as *const _)) };
     }
 }
 
@@ -97,7 +100,12 @@ fn main() -> Result<(), Error> {
 
         for id in KnownFolderIds::new(&kf_manager)?.as_slice() {
             let folder = kf_manager.GetFolder(id)?;
-            let name = KnownFolderDefinition::of(&folder)?.fields.pszName.to_string()?;
+
+            let name = KnownFolderDefinition::of(&folder)?
+                .fields
+                .pszName
+                .to_string()?;
+
             match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
                 Ok(path) => println!("{}: {}", name, path.to_string()?),
                 Err(e) => println!("{} [{}]", name, e.message()),
