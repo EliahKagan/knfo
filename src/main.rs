@@ -123,7 +123,7 @@ fn main() -> Result<()> {
     let _com = ComInit::new()?;
 
     let mut named_paths = get_named_paths()?;
-    named_paths.sort_by_key(|np| np.name.to_string());
+    named_paths.sort_by(|a, b| a.name.cmp(&b.name));
 
     let name_width_estimate = named_paths
         .iter()
