@@ -98,8 +98,10 @@ fn main() -> Result<(), Error> {
         for id in KnownFolderIds::new(&kf_manager)?.as_slice() {
             let folder = kf_manager.GetFolder(id)?;
             let name = KnownFolderDefinition::of(&folder)?.fields.pszName.to_string()?;
-            let path = folder.GetPath(0)?.to_string()?; // FIXME: Use KF_FLAG_DEFAULT if possible.
-            println!("{name}: {path}");
+            match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
+                Ok(path) => println!("{}: {}", name, path.to_string()?),
+                Err(e) => println!("{} [{}]", name, e.message()),
+            }
         }
 
         Ok(())
