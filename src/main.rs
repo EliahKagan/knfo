@@ -129,7 +129,7 @@ fn main() -> Result<()> {
     for NamedPath { name, try_path } in get_named_paths()? {
         match try_path {
             Ok(path) => println!("{name}: {path}"),
-            Err(e) => println!("{} [{}]", name, e.message()),
+            Err(e) => println!("{}  [{}]", name, e.message()),
         }
     }
 
