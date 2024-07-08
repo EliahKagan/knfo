@@ -2,8 +2,10 @@
 //!
 //! See [Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/known-folders).
 
+use std::string::FromUtf16Error;
+
 use windows::{
-    core::{Result, GUID, PWSTR},
+    core::{Error, GUID, PWSTR},
     Win32::{
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
@@ -19,9 +21,9 @@ use windows::{
 struct ComInit;
 
 impl ComInit {
-    fn new() -> Result<Self> {
+    fn new() -> Result<Self, Error> {
         unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.ok()?;
-        Ok(ComInit)
+        Ok(Self)
     }
 }
 
@@ -31,17 +33,41 @@ impl Drop for ComInit {
     }
 }
 
+fn co_free_pwstr(pwstr: PWSTR) {
+    unsafe { CoTaskMemFree(Some(pwstr.as_ptr() as *const _)) };
+}
+
+struct CoStr {
+    pwstr: PWSTR,
+}
+
+impl CoStr {
+    fn new(pwstr: PWSTR) -> Self {
+        Self { pwstr }
+    }
+
+    fn to_string(&self) -> Result<String, FromUtf16Error> {
+        unsafe { self.pwstr.to_string() }
+    }
+}
+
+impl Drop for CoStr {
+    fn drop(&mut self) {
+        co_free_pwstr(self.pwstr);
+    }
+}
+
 struct KnownFolderIds {
     pkfid: *mut GUID,
     count: u32,
 }
 
 impl KnownFolderIds {
-    fn new(kf_manager: &IKnownFolderManager) -> Result<Self> {
+    fn new(kf_manager: &IKnownFolderManager) -> Result<Self, Error> {
         let mut pkfid = std::ptr::null_mut();
         let mut count = 0;
         unsafe { kf_manager.GetFolderIds(&mut pkfid, &mut count)? };
-        Ok(KnownFolderIds { pkfid, count })
+        Ok(Self { pkfid, count })
     }
 
     fn as_slice(&self) -> &[GUID] {
@@ -60,15 +86,11 @@ struct KnownFolderDefinition {
 }
 
 impl KnownFolderDefinition {
-    fn of(folder: &IKnownFolder) -> Result<Self> {
+    fn of(folder: &IKnownFolder) -> Result<Self, Error> {
         let mut fields = KNOWNFOLDER_DEFINITION::default();
         unsafe { folder.GetFolderDefinition(&mut fields)? };
-        Ok(KnownFolderDefinition { fields })
+        Ok(Self { fields })
     }
-}
-
-fn co_free_pwstr(pwstr: PWSTR) {
-    unsafe { CoTaskMemFree(Some(pwstr.as_ptr() as *const _)) };
 }
 
 impl Drop for KnownFolderDefinition {
@@ -89,10 +111,10 @@ impl Drop for KnownFolderDefinition {
 
 struct NamedPath {
     name: String,
-    try_path: Result<String>,
+    try_path: Result<String, Error>,
 }
 
-fn get_named_paths() -> Result<Vec<NamedPath>> {
+fn get_named_paths() -> Result<Vec<NamedPath>, Error> {
     let mut ret = vec![];
 
     unsafe {
@@ -108,11 +130,7 @@ fn get_named_paths() -> Result<Vec<NamedPath>> {
                 .to_string()?;
 
             let try_path = match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
-                Ok(pwstr) => {
-                    let path = pwstr.to_string()?; // FIXME: PWSTR still leaks if ? returns.
-                    co_free_pwstr(pwstr);
-                    Ok(path)
-                }
+                Ok(pwstr) => Ok(CoStr::new(pwstr).to_string()?),
                 Err(e) => Err(e),
             };
 
@@ -123,7 +141,7 @@ fn get_named_paths() -> Result<Vec<NamedPath>> {
     Ok(ret)
 }
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Error> {
     let _com = ComInit::new()?;
 
     let mut named_paths = get_named_paths()?;
