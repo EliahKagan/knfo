@@ -107,9 +107,12 @@ fn get_named_paths() -> Result<Vec<NamedPath>> {
                 .pszName
                 .to_string()?;
 
-            // FIXME: This leaks the PWSTR.
             let try_path = match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
-                Ok(path) => Ok(path.to_string()?),
+                Ok(pwstr) => {
+                    let path = pwstr.to_string()?; // FIXME: PWSTR still leaks if ? returns.
+                    co_free_pwstr(pwstr);
+                    Ok(path)
+                }
                 Err(e) => Err(e),
             };
 
