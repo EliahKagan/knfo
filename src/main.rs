@@ -13,7 +13,7 @@ use windows::{
         },
         UI::Shell::{
             IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_DEFAULT,
-            KNOWNFOLDER_DEFINITION,
+            KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
         },
     },
 };
@@ -114,7 +114,7 @@ struct NamedPath {
     try_path: Result<String, Error>,
 }
 
-fn get_named_paths() -> Result<Vec<NamedPath>, Error> {
+fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, Error> {
     let mut ret = vec![];
 
     unsafe {
@@ -129,7 +129,7 @@ fn get_named_paths() -> Result<Vec<NamedPath>, Error> {
                 .pszName
                 .to_string()?;
 
-            let try_path = match folder.GetPath(KF_FLAG_DEFAULT.0 as u32) {
+            let try_path = match folder.GetPath(flags.0 as u32) {
                 Ok(pwstr) => Ok(CoStr::new(pwstr).to_string()?),
                 Err(e) => Err(e),
             };
@@ -144,7 +144,7 @@ fn get_named_paths() -> Result<Vec<NamedPath>, Error> {
 fn main() -> Result<(), Error> {
     let _com = ComInit::new()?;
 
-    let mut named_paths = get_named_paths()?;
+    let mut named_paths = get_named_paths(KF_FLAG_DEFAULT)?;
     named_paths.sort_by(|a, b| a.name.cmp(&b.name));
 
     let name_width_estimate = named_paths
