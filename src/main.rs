@@ -144,6 +144,7 @@ fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, Error> {
 fn main() -> Result<(), Error> {
     let _com = ComInit::new()?;
 
+    // TODO: Rather than always use KF_FLAG_DEFAULT, accept flags as command-line arguments.
     let mut named_paths = get_named_paths(KF_FLAG_DEFAULT)?;
     named_paths.sort_by(|a, b| a.name.cmp(&b.name));
 
