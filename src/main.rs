@@ -115,7 +115,7 @@ struct NamedPath {
 }
 
 fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, Error> {
-    let mut ret = vec![];
+    let mut named_paths = vec![];
 
     unsafe {
         let kf_manager: IKnownFolderManager =
@@ -134,20 +134,14 @@ fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, Error> {
                 Err(e) => Err(e),
             };
 
-            ret.push(NamedPath { name, try_path });
+            named_paths.push(NamedPath { name, try_path });
         }
     }
 
-    Ok(ret)
+    Ok(named_paths)
 }
 
-fn main() -> Result<(), Error> {
-    let _com = ComInit::new()?;
-
-    // TODO: Rather than always use KF_FLAG_DEFAULT, accept flags as command-line arguments.
-    let mut named_paths = get_named_paths(KF_FLAG_DEFAULT)?;
-    named_paths.sort_by(|a, b| a.name.cmp(&b.name));
-
+fn print_table(named_paths: Vec<NamedPath>) {
     let name_width_estimate = named_paths
         .iter()
         .map(|np| np.name.chars().count())
@@ -158,6 +152,15 @@ fn main() -> Result<(), Error> {
         let path_item = try_path.unwrap_or_else(|e| format!("[{}]", e.message()));
         println!("{name:<name_width_estimate$}  {path_item}");
     }
+}
+
+fn main() -> Result<(), Error> {
+    let _com = ComInit::new()?;
+
+    // TODO: Rather than always use KF_FLAG_DEFAULT, accept flags as command-line arguments.
+    let mut named_paths = get_named_paths(KF_FLAG_DEFAULT)?;
+    named_paths.sort_by(|a, b| a.name.cmp(&b.name));
+    print_table(named_paths);
 
     Ok(())
 }
