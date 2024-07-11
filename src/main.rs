@@ -61,6 +61,8 @@ const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
 );
 
 /// Flags we refuse to pass, because we would be passing them for ALL known folders.
+///
+/// See `read_args_as_kf_flags` for details.
 const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
 
 /// Convert an informal representation of a `KNOWN_FOLDER_FLAG` to the real name.
