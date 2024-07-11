@@ -279,7 +279,7 @@ fn main() -> Result<(), WindowsError> {
         std::process::exit(2);
     });
 
-    // To use `IKnownFolder`, we must have COM initialize on this thread.
+    // To use `IKnownFolder`, we must have COM initialized on this thread.
     let _com = ComInit::new()?;
 
     // Use those flags to access the COM API for known folders and list them out.
