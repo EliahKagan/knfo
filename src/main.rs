@@ -94,7 +94,7 @@ fn normalize_flag_name(flag_arg: &str) -> String {
 fn read_args_as_kf_flags() -> Result<KNOWN_FOLDER_FLAG, FlagError> {
     let table: HashMap<_, _> = HashMap::from_iter(NAMED_KF_FLAGS.iter().cloned());
     let mut flags = KF_FLAG_DEFAULT;
-    assert!(flags.0 == 0, "Bug: Default flags are somehow nonzero!");
+    assert_eq!(flags.0, 0, "Bug: Default flags are somehow nonzero!");
 
     for flag_arg in std::env::args().skip(1) {
         if flag_arg.starts_with('-') {
