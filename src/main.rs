@@ -20,6 +20,7 @@ use windows::Win32::UI::Shell::{
     KF_FLAG_SIMPLE_IDLIST, KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
 };
 
+/// Makes an array of pairs of each name as a string with the resolved name.
 macro_rules! named {
     ($($ident:ident),* $(,)?) => {
         [$(
@@ -50,6 +51,7 @@ const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
 /// Flags we refuse to pass, because we would be passing them for ALL known folders.
 const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
 
+/// Guard type that initializes COM on the current thread and uninitializes it on drop.
 struct ComInit;
 
 impl ComInit {
@@ -65,10 +67,12 @@ impl Drop for ComInit {
     }
 }
 
+/// Free a `PWSTR` with `CoTaskMemFree`.
 fn co_free_pwstr(pwstr: PWSTR) {
     unsafe { CoTaskMemFree(Some(pwstr.as_ptr().cast::<c_void>())) };
 }
 
+/// Owner of a `PWSTR` that must be freed with `CoTaskMemFree`.
 struct CoStr {
     pwstr: PWSTR,
 }
@@ -89,6 +93,9 @@ impl Drop for CoStr {
     }
 }
 
+/// Owner of `IKnownFolderManager::GetFolderIds` results.
+///
+/// On drop, this calls `CoTaskMemFree` on the block of GUIDs representing known folders.
 struct KnownFolderIds {
     pkfid: *mut GUID,
     count: u32,
@@ -113,6 +120,7 @@ impl Drop for KnownFolderIds {
     }
 }
 
+/// Owner of a `KNOWNFOLDER_DEFINITION` that frees its dynamic strings on drop.
 struct KnownFolderDefinition {
     fields: KNOWNFOLDER_DEFINITION,
 }
@@ -141,6 +149,7 @@ impl Drop for KnownFolderDefinition {
     }
 }
 
+/// A known folder name and either its retrieved path or an error.
 struct NamedPath {
     name: String,
     try_path: Result<String, Error>,
@@ -173,6 +182,7 @@ fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, Error> {
     Ok(named_paths)
 }
 
+/// Displays a table of each known folder name with its path or why the path is unavailable.
 fn print_table(named_paths: Vec<NamedPath>) {
     let name_width_estimate = named_paths
         .iter()
@@ -186,6 +196,7 @@ fn print_table(named_paths: Vec<NamedPath>) {
     }
 }
 
+/// Convert an informal representation of a `KNOWN_FOLDER_FLAG` to the real name.
 fn normalize_flag_name(flag_arg: &str) -> String {
     const PREFIX: &str = "KF_FLAG_";
     let upcased = flag_arg.to_uppercase();
@@ -196,7 +207,20 @@ fn normalize_flag_name(flag_arg: &str) -> String {
     }
 }
 
-// FIXME: Have this return a Result type and have the caller terminate if Error.
+/// Parse command line arguments as `KNOWN_FOLDER_FLAG` values.
+///
+/// Note that these represent how the operation of looking up a known folder's path
+/// is customized. They do not identify specific known folders. (This program always
+/// displays information about all registered known folders.)
+///
+/// This refuses to accept flags that would attempt to create directories for all
+/// registered known folders that do not yet have them, or that would only be
+/// meaningful in the presence of other flags that do this, since using this
+/// diagnostic utility to create a potentially large number of directories is very
+/// unlikely to be intended. To just see what the paths *would* all be if they were
+/// created, the `KF_FLAG_DONT_VERIFY` flag can be used.
+///
+/// FIXME: Have this return a Result type and have the caller terminate if Error.
 fn read_args_as_kf_flags() -> KNOWN_FOLDER_FLAG {
     let table: HashMap<_, _> = HashMap::from_iter(NAMED_KF_FLAGS.iter().cloned());
     let mut flags = KF_FLAG_DEFAULT;
