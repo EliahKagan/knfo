@@ -225,22 +225,27 @@ struct NamedPath {
 /// Get all known folder names and either paths or an error from getting the path.
 fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, WindowsError> {
     let mut named_paths = vec![];
+
     unsafe {
         let kf_manager: IKnownFolderManager =
             CoCreateInstance(&KnownFolderManager, None, CLSCTX_INPROC_SERVER)?;
+
         for id in KnownFolderIds::new(&kf_manager)?.as_slice() {
             let folder = kf_manager.GetFolder(id)?;
             let name = KnownFolderDefinition::of(&folder)?
                 .fields
                 .pszName
                 .to_string()?;
+
             let try_path = match folder.GetPath(flags.0 as u32) {
                 Ok(pwstr) => Ok(CoStr::new(pwstr).to_string()?),
                 Err(e) => Err(e),
             };
+
             named_paths.push(NamedPath { name, try_path });
         }
     }
+
     Ok(named_paths)
 }
 
