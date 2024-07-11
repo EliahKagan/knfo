@@ -241,8 +241,7 @@ fn main() -> Result<(), Error> {
     let _com = ComInit::new()?;
 
     let flags = read_args_as_kf_flags();
-    println!("{:?}", flags); // FIXME: Remove this, and use flags below.
-    let mut named_paths = get_named_paths(KF_FLAG_DEFAULT)?;
+    let mut named_paths = get_named_paths(flags)?;
     named_paths.sort_by(|a, b| a.name.cmp(&b.name));
     print_table(named_paths);
 
