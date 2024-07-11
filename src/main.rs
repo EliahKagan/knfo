@@ -26,7 +26,7 @@ use windows::Win32::UI::Shell::{
 #[derive(Debug, Error)]
 enum FlagError {
     #[error("No options are recognized (got {0:?})")]
-    UnrecognizedOption(String),
+    AttemptedOption(String),
 
     #[error("Unrecognized flag name: {0}")]
     UnrecognizedFlag(String),
@@ -98,7 +98,7 @@ fn read_args_as_kf_flags() -> Result<KNOWN_FOLDER_FLAG, FlagError> {
 
     for flag_arg in std::env::args().skip(1) {
         if flag_arg.starts_with('-') {
-            return Err(FlagError::UnrecognizedOption(flag_arg));
+            return Err(FlagError::AttemptedOption(flag_arg));
         }
 
         let flag_name = normalize_flag_name(&flag_arg);
