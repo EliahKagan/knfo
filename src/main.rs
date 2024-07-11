@@ -22,8 +22,9 @@ use windows::Win32::UI::Shell::{
     KF_FLAG_SIMPLE_IDLIST, KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
 };
 
+/// An error converting a command-line argument to a `KNOWN_FOLDER_FLAG` value.
 #[derive(Debug, Error)]
-enum FlagParseError {
+enum FlagError {
     #[error("No options are recognized (got {0:?})")]
     UnrecognizedOption(String),
     #[error("Unrecognized flag name: {0}")]
@@ -88,21 +89,21 @@ fn normalize_flag_name(flag_arg: &str) -> String {
 /// diagnostic utility to create a potentially large number of directories is very
 /// unlikely to be intended. To just see what the paths *would* all be if they were
 /// created, the `KF_FLAG_DONT_VERIFY` flag can be used.
-fn read_args_as_kf_flags() -> Result<KNOWN_FOLDER_FLAG, FlagParseError> {
+fn read_args_as_kf_flags() -> Result<KNOWN_FOLDER_FLAG, FlagError> {
     let table: HashMap<_, _> = HashMap::from_iter(NAMED_KF_FLAGS.iter().cloned());
     let mut flags = KF_FLAG_DEFAULT;
     assert!(flags.0 == 0, "Bug: Default flags are somehow nonzero!");
 
     for flag_arg in std::env::args().skip(1) {
         if flag_arg.starts_with('-') {
-            return Err(FlagParseError::UnrecognizedOption(flag_arg));
+            return Err(FlagError::UnrecognizedOption(flag_arg));
         }
 
         let flag_name = normalize_flag_name(&flag_arg);
         match table.get(flag_name.as_str()) {
-            None => return Err(FlagParseError::UnrecognizedFlag(flag_name)),
+            None => return Err(FlagError::UnrecognizedFlag(flag_name)),
             Some(flag) if BANNED_KF_FLAGS.contains(flag) => {
-                return Err(FlagParseError::BannedFlag(flag_name));
+                return Err(FlagError::BannedFlag(flag_name));
             }
             Some(flag) => flags |= *flag,
         }
