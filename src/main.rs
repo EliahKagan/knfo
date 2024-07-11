@@ -276,6 +276,7 @@ fn run(flags: KNOWN_FOLDER_FLAG) -> Result<(), WindowsError> {
 
 fn main() -> Result<(), WindowsError> {
     // Parse arguments and bail out if we cannot proceed.
+    // (Returning the FlagError would show a less useful symbolic representation.)
     let flags = read_args_as_kf_flags().unwrap_or_else(|e| {
         eprintln!("Error: {e}");
         std::process::exit(2);
