@@ -256,17 +256,24 @@ fn print_table(named_paths: Vec<NamedPath>) {
     }
 }
 
-fn main() -> Result<(), WindowsError> {
-    let _com = ComInit::new()?;
+/// Use the `IKnownFolder` API to retrieve information, and print it in tabular form.
+fn run(flags: KNOWN_FOLDER_FLAG) -> Result<(), WindowsError> {
+    let mut named_paths = get_named_paths(flags)?;
+    named_paths.sort_by(|a, b| a.name.cmp(&b.name));
+    print_table(named_paths);
+    Ok(())
+}
 
+fn main() -> Result<(), WindowsError> {
+    // Parse arguments and bail out if we cannot proceed.
     let flags = read_args_as_kf_flags().unwrap_or_else(|e| {
         eprintln!("Error: {e}");
         std::process::exit(2);
     });
 
-    let mut named_paths = get_named_paths(flags)?;
-    named_paths.sort_by(|a, b| a.name.cmp(&b.name));
-    print_table(named_paths);
+    // To use `IKnownFolder`, we must have COM initialize on this thread.
+    let _com = ComInit::new()?;
 
-    Ok(())
+    // Use those flags to access the COM API for known folders and list them out.
+    run(flags)
 }
