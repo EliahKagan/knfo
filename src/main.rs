@@ -2,6 +2,7 @@
 //!
 //! See [Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/known-folders).
 
+use core::ffi::c_void;
 use std::string::FromUtf16Error;
 
 use windows::{
@@ -34,7 +35,7 @@ impl Drop for ComInit {
 }
 
 fn co_free_pwstr(pwstr: PWSTR) {
-    unsafe { CoTaskMemFree(Some(pwstr.as_ptr() as *const _)) };
+    unsafe { CoTaskMemFree(Some(pwstr.as_ptr().cast::<c_void>())) };
 }
 
 struct CoStr {
@@ -77,7 +78,7 @@ impl KnownFolderIds {
 
 impl Drop for KnownFolderIds {
     fn drop(&mut self) {
-        unsafe { CoTaskMemFree(Some(self.pkfid as *const _)) };
+        unsafe { CoTaskMemFree(Some(self.pkfid.cast::<c_void>())) };
     }
 }
 
