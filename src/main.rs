@@ -27,8 +27,10 @@ use windows::Win32::UI::Shell::{
 enum FlagError {
     #[error("No options are recognized (got {0:?})")]
     UnrecognizedOption(String),
+
     #[error("Unrecognized flag name: {0}")]
     UnrecognizedFlag(String),
+
     #[error("Refusing to attempt to pass {0} for ALL known folders (dangerous)")]
     BannedFlag(String),
 }
