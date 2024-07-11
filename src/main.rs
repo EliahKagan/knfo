@@ -86,7 +86,7 @@ const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
     KF_FLAG_ALIAS_ONLY,
 );
 
-/// Flags we refuse to pass.
+/// Flags we refuse to pass, because we would be passing them for ALL known folders.
 const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
 
 struct KnownFolderIds {
