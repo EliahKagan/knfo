@@ -20,6 +20,36 @@ use windows::Win32::UI::Shell::{
     KF_FLAG_SIMPLE_IDLIST, KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
 };
 
+macro_rules! named {
+    ($($ident:ident),* $(,)?) => {
+        [$(
+            (stringify!($ident), $ident),
+        )*]
+    };
+}
+
+/// Pairs of known folder flags' symbolic names and the flag values.
+const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
+    KF_FLAG_DEFAULT,
+    KF_FLAG_FORCE_APP_DATA_REDIRECTION,
+    KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET,
+    KF_FLAG_FORCE_PACKAGE_REDIRECTION,
+    KF_FLAG_NO_PACKAGE_REDIRECTION,
+    KF_FLAG_FORCE_APPCONTAINER_REDIRECTION,
+    KF_FLAG_CREATE, // Though we will refuse to attempt it.
+    KF_FLAG_DONT_VERIFY,
+    KF_FLAG_DONT_UNEXPAND,
+    KF_FLAG_NO_ALIAS,
+    KF_FLAG_INIT, // Though we will refuse, as it is only meaningful with KF_FLAG_CREATE.
+    KF_FLAG_DEFAULT_PATH,
+    KF_FLAG_NOT_PARENT_RELATIVE,
+    KF_FLAG_SIMPLE_IDLIST,
+    KF_FLAG_ALIAS_ONLY,
+);
+
+/// Flags we refuse to pass, because we would be passing them for ALL known folders.
+const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
+
 struct ComInit;
 
 impl ComInit {
@@ -58,36 +88,6 @@ impl Drop for CoStr {
         co_free_pwstr(self.pwstr);
     }
 }
-
-macro_rules! named {
-    ($($ident:ident),* $(,)?) => {
-        [$(
-            (stringify!($ident), $ident),
-        )*]
-    };
-}
-
-/// Pairs of known folder flags' symbolic names and the flag values.
-const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
-    KF_FLAG_DEFAULT,
-    KF_FLAG_FORCE_APP_DATA_REDIRECTION,
-    KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET,
-    KF_FLAG_FORCE_PACKAGE_REDIRECTION,
-    KF_FLAG_NO_PACKAGE_REDIRECTION,
-    KF_FLAG_FORCE_APPCONTAINER_REDIRECTION,
-    KF_FLAG_CREATE, // Though we will refuse to attempt it.
-    KF_FLAG_DONT_VERIFY,
-    KF_FLAG_DONT_UNEXPAND,
-    KF_FLAG_NO_ALIAS,
-    KF_FLAG_INIT, // Though we will refuse, as it is only meaningful with KF_FLAG_CREATE.
-    KF_FLAG_DEFAULT_PATH,
-    KF_FLAG_NOT_PARENT_RELATIVE,
-    KF_FLAG_SIMPLE_IDLIST,
-    KF_FLAG_ALIAS_ONLY,
-);
-
-/// Flags we refuse to pass, because we would be passing them for ALL known folders.
-const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
 
 struct KnownFolderIds {
     pkfid: *mut GUID,
