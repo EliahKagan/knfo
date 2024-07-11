@@ -3,6 +3,7 @@
 //! See [Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/known-folders).
 
 use core::ffi::c_void;
+use std::collections::HashMap;
 use std::string::FromUtf16Error;
 
 use windows::{
@@ -13,7 +14,12 @@ use windows::{
             COINIT_APARTMENTTHREADED,
         },
         UI::Shell::{
-            IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_DEFAULT,
+            IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_ALIAS_ONLY,
+            KF_FLAG_CREATE, KF_FLAG_DEFAULT, KF_FLAG_DEFAULT_PATH, KF_FLAG_DONT_UNEXPAND,
+            KF_FLAG_DONT_VERIFY, KF_FLAG_FORCE_APPCONTAINER_REDIRECTION,
+            KF_FLAG_FORCE_APP_DATA_REDIRECTION, KF_FLAG_FORCE_PACKAGE_REDIRECTION, KF_FLAG_INIT,
+            KF_FLAG_NOT_PARENT_RELATIVE, KF_FLAG_NO_ALIAS, KF_FLAG_NO_PACKAGE_REDIRECTION,
+            KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET, KF_FLAG_SIMPLE_IDLIST,
             KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
         },
     },
@@ -57,6 +63,36 @@ impl Drop for CoStr {
         co_free_pwstr(self.pwstr);
     }
 }
+
+macro_rules! named {
+    ($($ident:ident),* $(,)?) => {
+        [$(
+            (stringify!($ident), $ident),
+        )*]
+    };
+}
+
+/// Pairs of known folder flags' symbolic names and the flag values.
+const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
+    KF_FLAG_DEFAULT,
+    KF_FLAG_FORCE_APP_DATA_REDIRECTION,
+    KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET,
+    KF_FLAG_FORCE_PACKAGE_REDIRECTION,
+    KF_FLAG_NO_PACKAGE_REDIRECTION,
+    KF_FLAG_FORCE_APPCONTAINER_REDIRECTION,
+    KF_FLAG_CREATE, // Though we will refuse to attempt it.
+    KF_FLAG_DONT_VERIFY,
+    KF_FLAG_DONT_UNEXPAND,
+    KF_FLAG_NO_ALIAS,
+    KF_FLAG_INIT, // Though we will refuse, as it is only meaningful with KF_FLAG_CREATE.
+    KF_FLAG_DEFAULT_PATH,
+    KF_FLAG_NOT_PARENT_RELATIVE,
+    KF_FLAG_SIMPLE_IDLIST,
+    KF_FLAG_ALIAS_ONLY,
+);
+
+/// Flags we refuse to pass.
+const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
 
 struct KnownFolderIds {
     pkfid: *mut GUID,
@@ -155,10 +191,57 @@ fn print_table(named_paths: Vec<NamedPath>) {
     }
 }
 
+fn normalize_flag_name(flag_arg: &str) -> String {
+    const PREFIX: &str = "KF_FLAG_";
+    let upcased = flag_arg.to_uppercase();
+    if upcased.starts_with(PREFIX) {
+        upcased
+    } else {
+        format!("{PREFIX}{upcased}")
+    }
+}
+
+// FIXME: Have this return a Result type and have the caller terminate if Error.
+fn read_args_as_kf_flags() -> KNOWN_FOLDER_FLAG {
+    let table: HashMap<_, _> = HashMap::from_iter(NAMED_KF_FLAGS.iter().cloned());
+    let mut flags = KF_FLAG_DEFAULT;
+    assert!(flags.0 == 0, "Bug: Default flags are somehow nonzero!");
+
+    for flag_arg in std::env::args().skip(1) {
+        if flag_arg.starts_with('-') {
+            eprintln!("Error: No options are recognized (got {:?})", flag_arg);
+            std::process::exit(2);
+        }
+        let flag_name = normalize_flag_name(&flag_arg);
+
+        match table.get(flag_name.as_str()) {
+            None => {
+                eprintln!("Error: Unrecognized flag name: {flag_name}");
+                std::process::exit(2);
+            }
+            Some(flag) if BANNED_KF_FLAGS.contains(flag) => {
+                eprintln!("Error: Refusing to attempt to pass {flag_name} for ALL known folders (dangerous).");
+                std::process::exit(2);
+            }
+            Some(flag) => flags |= *flag,
+        }
+    }
+
+    for banned_flag in BANNED_KF_FLAGS {
+        assert!(
+            !flags.contains(*banned_flag),
+            "Bug: Other flags somehow combined to form banned flag {banned_flag:?}"
+        );
+    }
+
+    flags
+}
+
 fn main() -> Result<(), Error> {
     let _com = ComInit::new()?;
 
-    // TODO: Rather than always use KF_FLAG_DEFAULT, accept flags as command-line arguments.
+    let flags = read_args_as_kf_flags();
+    println!("{:?}", flags); // FIXME: Remove this, and use flags below.
     let mut named_paths = get_named_paths(KF_FLAG_DEFAULT)?;
     named_paths.sort_by(|a, b| a.name.cmp(&b.name));
     print_table(named_paths);
