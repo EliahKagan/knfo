@@ -6,23 +6,18 @@ use core::ffi::c_void;
 use std::collections::HashMap;
 use std::string::FromUtf16Error;
 
-use windows::{
-    core::{Error, GUID, PWSTR},
-    Win32::{
-        System::Com::{
-            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
-            COINIT_APARTMENTTHREADED,
-        },
-        UI::Shell::{
-            IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_ALIAS_ONLY,
-            KF_FLAG_CREATE, KF_FLAG_DEFAULT, KF_FLAG_DEFAULT_PATH, KF_FLAG_DONT_UNEXPAND,
-            KF_FLAG_DONT_VERIFY, KF_FLAG_FORCE_APPCONTAINER_REDIRECTION,
-            KF_FLAG_FORCE_APP_DATA_REDIRECTION, KF_FLAG_FORCE_PACKAGE_REDIRECTION, KF_FLAG_INIT,
-            KF_FLAG_NOT_PARENT_RELATIVE, KF_FLAG_NO_ALIAS, KF_FLAG_NO_PACKAGE_REDIRECTION,
-            KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET, KF_FLAG_SIMPLE_IDLIST,
-            KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
-        },
-    },
+use windows::core::{Error, GUID, PWSTR};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
+    COINIT_APARTMENTTHREADED,
+};
+use windows::Win32::UI::Shell::{
+    IKnownFolder, IKnownFolderManager, KnownFolderManager, KF_FLAG_ALIAS_ONLY, KF_FLAG_CREATE,
+    KF_FLAG_DEFAULT, KF_FLAG_DEFAULT_PATH, KF_FLAG_DONT_UNEXPAND, KF_FLAG_DONT_VERIFY,
+    KF_FLAG_FORCE_APPCONTAINER_REDIRECTION, KF_FLAG_FORCE_APP_DATA_REDIRECTION,
+    KF_FLAG_FORCE_PACKAGE_REDIRECTION, KF_FLAG_INIT, KF_FLAG_NOT_PARENT_RELATIVE, KF_FLAG_NO_ALIAS,
+    KF_FLAG_NO_PACKAGE_REDIRECTION, KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET,
+    KF_FLAG_SIMPLE_IDLIST, KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
 };
 
 struct ComInit;
