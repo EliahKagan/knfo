@@ -6,7 +6,9 @@ use core::ffi::c_void;
 use std::collections::HashMap;
 use std::string::FromUtf16Error;
 
-use windows::core::{Error, GUID, PWSTR};
+use thiserror::Error;
+
+use windows::core::{Error as WindowsError, GUID, PWSTR};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER,
     COINIT_APARTMENTTHREADED,
@@ -19,6 +21,16 @@ use windows::Win32::UI::Shell::{
     KF_FLAG_NO_PACKAGE_REDIRECTION, KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET,
     KF_FLAG_SIMPLE_IDLIST, KNOWNFOLDER_DEFINITION, KNOWN_FOLDER_FLAG,
 };
+
+#[derive(Debug, Error)]
+enum FlagParseError {
+    #[error("No options are recognized (got {0:?})")]
+    UnrecognizedOption(String),
+    #[error("Unrecognized flag name: {0}")]
+    UnrecognizedFlag(String),
+    #[error("Refusing to attempt to pass {0} for ALL known folders (dangerous)")]
+    BannedFlag(String),
+}
 
 /// Makes an array of pairs of each name as a string with the resolved name.
 macro_rules! named {
@@ -51,11 +63,64 @@ const NAMED_KF_FLAGS: &[(&str, KNOWN_FOLDER_FLAG)] = &named!(
 /// Flags we refuse to pass, because we would be passing them for ALL known folders.
 const BANNED_KF_FLAGS: &[KNOWN_FOLDER_FLAG] = &[KF_FLAG_CREATE, KF_FLAG_INIT];
 
+/// Convert an informal representation of a `KNOWN_FOLDER_FLAG` to the real name.
+fn normalize_flag_name(flag_arg: &str) -> String {
+    const PREFIX: &str = "KF_FLAG_";
+    let upcased = flag_arg.to_uppercase();
+    if upcased.starts_with(PREFIX) {
+        upcased
+    } else {
+        format!("{PREFIX}{upcased}")
+    }
+}
+
+/// Parse command line arguments as `KNOWN_FOLDER_FLAG` values.
+///
+/// Note that these represent how the operation of looking up a known folder's path
+/// is customized. They do not identify specific known folders. (This program always
+/// displays information about all registered known folders.)
+///
+/// This refuses to accept flags that would attempt to create directories for all
+/// registered known folders that do not yet have them, or that would only be
+/// meaningful in the presence of other flags that do this, since using this
+/// diagnostic utility to create a potentially large number of directories is very
+/// unlikely to be intended. To just see what the paths *would* all be if they were
+/// created, the `KF_FLAG_DONT_VERIFY` flag can be used.
+fn read_args_as_kf_flags() -> Result<KNOWN_FOLDER_FLAG, FlagParseError> {
+    let table: HashMap<_, _> = HashMap::from_iter(NAMED_KF_FLAGS.iter().cloned());
+    let mut flags = KF_FLAG_DEFAULT;
+    assert!(flags.0 == 0, "Bug: Default flags are somehow nonzero!");
+
+    for flag_arg in std::env::args().skip(1) {
+        if flag_arg.starts_with('-') {
+            return Err(FlagParseError::UnrecognizedOption(flag_arg));
+        }
+
+        let flag_name = normalize_flag_name(&flag_arg);
+        match table.get(flag_name.as_str()) {
+            None => return Err(FlagParseError::UnrecognizedFlag(flag_name)),
+            Some(flag) if BANNED_KF_FLAGS.contains(flag) => {
+                return Err(FlagParseError::BannedFlag(flag_name));
+            }
+            Some(flag) => flags |= *flag,
+        }
+    }
+
+    for banned_flag in BANNED_KF_FLAGS {
+        assert!(
+            !flags.contains(*banned_flag),
+            "Bug: Other flags somehow combined to form banned flag {banned_flag:?}"
+        );
+    }
+
+    Ok(flags)
+}
+
 /// Guard type that initializes COM on the current thread and uninitializes it on drop.
 struct ComInit;
 
 impl ComInit {
-    fn new() -> Result<Self, Error> {
+    fn new() -> Result<Self, WindowsError> {
         unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.ok()?;
         Ok(Self)
     }
@@ -102,7 +167,7 @@ struct KnownFolderIds {
 }
 
 impl KnownFolderIds {
-    fn new(kf_manager: &IKnownFolderManager) -> Result<Self, Error> {
+    fn new(kf_manager: &IKnownFolderManager) -> Result<Self, WindowsError> {
         let mut pkfid = std::ptr::null_mut();
         let mut count = 0;
         unsafe { kf_manager.GetFolderIds(&mut pkfid, &mut count)? };
@@ -126,7 +191,7 @@ struct KnownFolderDefinition {
 }
 
 impl KnownFolderDefinition {
-    fn of(folder: &IKnownFolder) -> Result<Self, Error> {
+    fn of(folder: &IKnownFolder) -> Result<Self, WindowsError> {
         let mut fields = KNOWNFOLDER_DEFINITION::default();
         unsafe { folder.GetFolderDefinition(&mut fields)? };
         Ok(Self { fields })
@@ -152,33 +217,28 @@ impl Drop for KnownFolderDefinition {
 /// A known folder name and either its retrieved path or an error.
 struct NamedPath {
     name: String,
-    try_path: Result<String, Error>,
+    try_path: Result<String, WindowsError>,
 }
 
-fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, Error> {
+/// Get all known folder names and either paths or an error from getting the path.
+fn get_named_paths(flags: KNOWN_FOLDER_FLAG) -> Result<Vec<NamedPath>, WindowsError> {
     let mut named_paths = vec![];
-
     unsafe {
         let kf_manager: IKnownFolderManager =
             CoCreateInstance(&KnownFolderManager, None, CLSCTX_INPROC_SERVER)?;
-
         for id in KnownFolderIds::new(&kf_manager)?.as_slice() {
             let folder = kf_manager.GetFolder(id)?;
-
             let name = KnownFolderDefinition::of(&folder)?
                 .fields
                 .pszName
                 .to_string()?;
-
             let try_path = match folder.GetPath(flags.0 as u32) {
                 Ok(pwstr) => Ok(CoStr::new(pwstr).to_string()?),
                 Err(e) => Err(e),
             };
-
             named_paths.push(NamedPath { name, try_path });
         }
     }
-
     Ok(named_paths)
 }
 
@@ -196,70 +256,14 @@ fn print_table(named_paths: Vec<NamedPath>) {
     }
 }
 
-/// Convert an informal representation of a `KNOWN_FOLDER_FLAG` to the real name.
-fn normalize_flag_name(flag_arg: &str) -> String {
-    const PREFIX: &str = "KF_FLAG_";
-    let upcased = flag_arg.to_uppercase();
-    if upcased.starts_with(PREFIX) {
-        upcased
-    } else {
-        format!("{PREFIX}{upcased}")
-    }
-}
-
-/// Parse command line arguments as `KNOWN_FOLDER_FLAG` values.
-///
-/// Note that these represent how the operation of looking up a known folder's path
-/// is customized. They do not identify specific known folders. (This program always
-/// displays information about all registered known folders.)
-///
-/// This refuses to accept flags that would attempt to create directories for all
-/// registered known folders that do not yet have them, or that would only be
-/// meaningful in the presence of other flags that do this, since using this
-/// diagnostic utility to create a potentially large number of directories is very
-/// unlikely to be intended. To just see what the paths *would* all be if they were
-/// created, the `KF_FLAG_DONT_VERIFY` flag can be used.
-///
-/// FIXME: Have this return a Result type and have the caller terminate if Error.
-fn read_args_as_kf_flags() -> KNOWN_FOLDER_FLAG {
-    let table: HashMap<_, _> = HashMap::from_iter(NAMED_KF_FLAGS.iter().cloned());
-    let mut flags = KF_FLAG_DEFAULT;
-    assert!(flags.0 == 0, "Bug: Default flags are somehow nonzero!");
-
-    for flag_arg in std::env::args().skip(1) {
-        if flag_arg.starts_with('-') {
-            eprintln!("Error: No options are recognized (got {:?})", flag_arg);
-            std::process::exit(2);
-        }
-        let flag_name = normalize_flag_name(&flag_arg);
-
-        match table.get(flag_name.as_str()) {
-            None => {
-                eprintln!("Error: Unrecognized flag name: {flag_name}");
-                std::process::exit(2);
-            }
-            Some(flag) if BANNED_KF_FLAGS.contains(flag) => {
-                eprintln!("Error: Refusing to attempt to pass {flag_name} for ALL known folders (dangerous).");
-                std::process::exit(2);
-            }
-            Some(flag) => flags |= *flag,
-        }
-    }
-
-    for banned_flag in BANNED_KF_FLAGS {
-        assert!(
-            !flags.contains(*banned_flag),
-            "Bug: Other flags somehow combined to form banned flag {banned_flag:?}"
-        );
-    }
-
-    flags
-}
-
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), WindowsError> {
     let _com = ComInit::new()?;
 
-    let flags = read_args_as_kf_flags();
+    let flags = read_args_as_kf_flags().unwrap_or_else(|e| {
+        eprintln!("Error: {e}");
+        std::process::exit(2);
+    });
+
     let mut named_paths = get_named_paths(flags)?;
     named_paths.sort_by(|a, b| a.name.cmp(&b.name));
     print_table(named_paths);
